@@ -10,4 +10,5 @@ vault/
 **/.DS_Store
 
 # Historical backup folders from earlier upgrade scripts
+.upgrade-backup/
 .upgrade-*-backup/
