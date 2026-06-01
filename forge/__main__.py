@@ -21,6 +21,7 @@ from .commands import (
     cmd_subscribe,
     cmd_sync,
     cmd_relate,
+    cmd_gates,
 )
 from .watch import watch_loop
 
@@ -119,6 +120,17 @@ def build_parser() -> argparse.ArgumentParser:
     relate_p.add_argument("--dry-run", action="store_true", help="Show plan, no API calls, no writes")
     relate_p.add_argument("--sleep", type=float, default=8.0, help="Seconds between API calls (default 8)")
     relate_p.set_defaults(fn=cmd_relate)
+
+
+    gates_p = sub.add_parser("gates", help="Run gates on a SKILL.md file (returns 0=pass, 1=fail)")
+    gates_p.add_argument("path", help="Path to SKILL.md (bare or wrapped proposal)")
+    gates_p.add_argument("--no-effectiveness", action="store_true",
+                         help="Skip the effectiveness gate (no Claude API call)")
+    gates_p.add_argument("--allow-thin-drafts", action="store_true",
+                         help="Don't block thin drafts in the quality gate")
+    gates_p.add_argument("--json", action="store_true",
+                         help="Output machine-readable JSON instead of human report")
+    gates_p.set_defaults(fn=cmd_gates)
 
     return p
 

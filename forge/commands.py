@@ -1674,3 +1674,74 @@ def cmd_relate(args, config: Config) -> int:
     if args.dry_run:
         print("(dry run — no writes, no API calls)")
     return 0 if errors == 0 else 1
+
+
+# ---------- forge gates ----------------------------------------------------
+
+
+def cmd_gates(args, config: Config) -> int:
+    """Run gates on a SKILL.md file. Returns 0 if all pass, 1 if any fail."""
+    import json as _json
+    import re as _re
+    from .gates import run_all_gates
+
+    path = Path(args.path).expanduser()
+    if not path.exists():
+        print(f"X file not found: {path}", file=sys.stderr)
+        return 2
+    if not path.is_file():
+        print(f"X not a file: {path}", file=sys.stderr)
+        return 2
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        print(f"X couldn't read {path}: {e}", file=sys.stderr)
+        return 2
+
+    # Detect shape: bare SKILL.md vs wrapper-frontmatter proposal.
+    head_lines = text.splitlines()[:50]
+    sep_count = sum(1 for line in head_lines if line.rstrip() == "---")
+    skill_md = text
+    if sep_count >= 4:
+        # Wrapper proposal: extract everything after the divider
+        divider_match = _re.search(r"\n---\s*\n---\s*\n", text)
+        if divider_match:
+            skill_md = "---\n" + text[divider_match.end():]
+
+    # Derive skill name from frontmatter (or filename fallback)
+    name_match = _re.search(r"^name:\s*(\S+)", skill_md, _re.MULTILINE)
+    skill_name = name_match.group(1).strip() if name_match else path.stem
+
+    # Run the gates
+    effect_enabled = not args.no_effectiveness
+    if effect_enabled and not config.anthropic_api_key:
+        print("! ANTHROPIC_API_KEY not set — effectiveness gate will fail", file=sys.stderr)
+
+    report = run_all_gates(
+        skill_md,
+        skill_name=skill_name,
+        block_thin_drafts=not args.allow_thin_drafts,
+        effectiveness_enabled=effect_enabled,
+        api_key=config.anthropic_api_key,
+    )
+
+    if args.json:
+        out = {
+            "skill_name": report.skill_name,
+            "overall_passed": report.overall_passed,
+            "results": [
+                {
+                    "name": r.name,
+                    "passed": r.passed,
+                    "findings": r.findings,
+                    "suggestions": r.suggestions,
+                }
+                for r in report.results
+            ],
+        }
+        print(_json.dumps(out, indent=2))
+    else:
+        print(report.render())
+
+    return 0 if report.overall_passed else 1
