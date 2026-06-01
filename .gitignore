@@ -4,3 +4,10 @@ __pycache__/
 .skill-forge/
 vault/
 *.log
+
+# macOS clutter
+.DS_Store
+**/.DS_Store
+
+# Historical backup folders from earlier upgrade scripts
+.upgrade-*-backup/
