@@ -1745,3 +1745,137 @@ def cmd_gates(args, config: Config) -> int:
         print(report.render())
 
     return 0 if report.overall_passed else 1
+
+
+# ---------- forge pending --------------------------------------------------
+
+
+def cmd_pending(args, config: Config) -> int:
+    """Dispatch for `forge pending <subcommand>`."""
+    import shutil as _shutil
+    import subprocess as _sp
+
+    pending_dir = config.skills_repo_path / "pending"
+
+    sub_cmd = getattr(args, "pending_cmd", None)
+
+    if sub_cmd == "list" or sub_cmd is None:
+        return _pending_list(pending_dir)
+    elif sub_cmd == "view":
+        return _pending_view(pending_dir, args.name)
+    elif sub_cmd == "reject":
+        return _pending_reject(config, pending_dir, args.name)
+    else:
+        print(f"X unknown pending subcommand: {sub_cmd}", file=sys.stderr)
+        return 1
+
+
+def _pending_list(pending_dir: Path) -> int:
+    """List skills currently in pending/."""
+    if not pending_dir.exists():
+        print("(no pending/ folder — nothing pending)")
+        return 0
+    skills = []
+    for entry in sorted(pending_dir.iterdir()):
+        if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        skill_md = entry / "SKILL.md"
+        if not skill_md.exists():
+            continue
+        # Pull a description for the listing
+        desc = ""
+        try:
+            text = skill_md.read_text(encoding="utf-8")
+            m = __import__("re").search(r"^description:\s*(.+)$", text, __import__("re").MULTILINE)
+            if m:
+                desc = m.group(1).strip()
+                if len(desc) > 100:
+                    desc = desc[:97] + "..."
+        except OSError:
+            pass
+        skills.append((entry.name, desc))
+
+    if not skills:
+        print("(pending/ is empty — no skills awaiting curation)")
+        return 0
+
+    print(f"{len(skills)} skill(s) in pending/:")
+    print()
+    for name, desc in skills:
+        print(f"  {name}")
+        if desc:
+            print(f"      {desc}")
+    print()
+    print("Next steps:")
+    print("  forge pending view <name>      # inspect SKILL.md")
+    print("  forge pending reject <name>    # remove from pending/")
+    print("  forge pending promote <name>   # move to a stack (patch #4)")
+    return 0
+
+
+def _pending_view(pending_dir: Path, name: str) -> int:
+    """Print the SKILL.md of a pending skill to stdout."""
+    skill_md = pending_dir / name / "SKILL.md"
+    if not skill_md.exists():
+        print(f"X not found: {skill_md}", file=sys.stderr)
+        print(f"  (try `forge pending list` to see available)", file=sys.stderr)
+        return 1
+    try:
+        print(skill_md.read_text(encoding="utf-8"))
+    except OSError as e:
+        print(f"X couldn't read {skill_md}: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _pending_reject(config: Config, pending_dir: Path, name: str) -> int:
+    """Delete a pending skill folder and commit the removal."""
+    import shutil as _shutil
+    import subprocess as _sp
+
+    target = pending_dir / name
+    if not target.exists():
+        print(f"X not found: {target}", file=sys.stderr)
+        return 1
+    if not target.is_dir():
+        print(f"X not a directory: {target}", file=sys.stderr)
+        return 1
+
+    # Confirm with the user — destructive
+    answer = input(f"Delete pending/{name}/? (yes/no): ").strip().lower()
+    if answer not in ("yes", "y"):
+        print("Cancelled.")
+        return 0
+
+    _shutil.rmtree(target)
+    print(f"  + deleted pending/{name}/")
+
+    # Commit + push if it's a git repo
+    repo = config.skills_repo_path
+    if (repo / ".git").exists():
+        try:
+            _sp.run(["git", "-C", str(repo), "add", "-A"], check=True)
+            result = _sp.run(
+                ["git", "-C", str(repo), "diff", "--cached", "--quiet"],
+            )
+            if result.returncode != 0:
+                _sp.run(
+                    ["git", "-C", str(repo), "commit", "-m", f"forge: reject pending/{name}"],
+                    check=True,
+                )
+                print(f"  + committed")
+                if getattr(config, "git_auto_push", True):
+                    push_result = _sp.run(
+                        ["git", "-C", str(repo), "push"],
+                        check=False,
+                    )
+                    if push_result.returncode == 0:
+                        print(f"  + pushed")
+                    else:
+                        print(f"  ! push failed (manual `git push` needed)", file=sys.stderr)
+        except _sp.CalledProcessError as e:
+            print(f"  ! git operation failed: {e}", file=sys.stderr)
+            print(f"  (the folder was deleted; commit it manually with:", file=sys.stderr)
+            print(f"     git -C {repo} add -A && git -C {repo} commit -m 'reject {name}')",
+                  file=sys.stderr)
+    return 0

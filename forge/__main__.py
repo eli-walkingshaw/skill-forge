@@ -22,6 +22,7 @@ from .commands import (
     cmd_sync,
     cmd_relate,
     cmd_gates,
+    cmd_pending,
 )
 from .watch import watch_loop
 
@@ -131,6 +132,16 @@ def build_parser() -> argparse.ArgumentParser:
     gates_p.add_argument("--json", action="store_true",
                          help="Output machine-readable JSON instead of human report")
     gates_p.set_defaults(fn=cmd_gates)
+
+
+    pending_p = sub.add_parser("pending", help="Manage skills awaiting curation in pending/")
+    pending_sub = pending_p.add_subparsers(dest="pending_cmd")
+    pending_sub.add_parser("list", help="List skills in pending/")
+    view_p = pending_sub.add_parser("view", help="Print a pending skill's SKILL.md")
+    view_p.add_argument("name", help="Skill folder name in pending/")
+    reject_p = pending_sub.add_parser("reject", help="Delete a pending skill (irreversible)")
+    reject_p.add_argument("name", help="Skill folder name to reject")
+    pending_p.set_defaults(fn=cmd_pending)
 
     return p
 
