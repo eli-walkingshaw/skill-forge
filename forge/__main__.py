@@ -141,6 +141,15 @@ def build_parser() -> argparse.ArgumentParser:
     view_p.add_argument("name", help="Skill folder name in pending/")
     reject_p = pending_sub.add_parser("reject", help="Delete a pending skill (irreversible)")
     reject_p.add_argument("name", help="Skill folder name to reject")
+    promote_p = pending_sub.add_parser("promote", help="Promote a pending skill to a stack (opens PR by default)")
+    promote_p.add_argument("name", help="Skill folder name in pending/")
+    promote_p.add_argument("--stack", help="Override target stack (default: from frontmatter)")
+    promote_p.add_argument("--direct", action="store_true",
+                           help="Skip PR, commit + push directly to main")
+    promote_p.add_argument("--skip-gates", action="store_true",
+                           help="Don't run gates before promoting (dangerous)")
+    promote_p.add_argument("--no-effectiveness", action="store_true",
+                           help="Skip effectiveness gate (no Claude call)")
     pending_p.set_defaults(fn=cmd_pending)
 
     return p
