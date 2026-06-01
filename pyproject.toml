@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-forge"
+version = "0.1.0"
+description = "Capture, review, and publish Claude Code skills"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+# Forge uses only stdlib: urllib, pathlib, json, re, subprocess, etc.
+# No third-party deps. This is intentional — it makes CI install fast and
+# reproducible.
+
+[project.scripts]
+forge = "forge.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["forge*"]
+exclude = ["tests*", ".upgrade-*-backup*", "vault-template*"]
